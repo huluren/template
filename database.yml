@@ -1,0 +1,21 @@
+default: &default
+  adapter: postgresql
+  encoding: utf8
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  username:
+  password:
+  host: localhost
+
+development:
+  <<: *default
+  url: <%= ENV.fetch("DATABASE_URL") { "sqlite3:%s/%s.sqlite3" % [ENV.fetch("DATABASE_DIR", "./db"), Rails.env] } %>
+
+test:
+  <<: *default
+  url: <%= ENV.fetch("DATABASE_URL") { "sqlite3:%s/%s.sqlite3" % [ENV.fetch("DATABASE_DIR", "./db"), Rails.env] } %>
+
+production:
+  <<: *default
+  username: <%= ENV['DATABASE_USERNAME'] %>
+  password: <%= ENV['DATABASE_PASSWORD'] %>
+  url: <%= ENV['DATABASE_URL'] %>

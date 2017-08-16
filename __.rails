@@ -1,0 +1,176 @@
+## App level
+
+gem 'rails'
+
+gem 'pg'
+gem 'redis', require: %w{ redis redis/connection/hiredis }
+gem 'hiredis'
+gem 'connection_pool'
+
+gem 'puma'
+
+## Product level
+
+gem 'rails-i18n'
+gem 'title'
+
+gem 'devise'
+gem 'devise-i18n'
+gem 'omniauth-github'
+gem 'omniauth-twitter'
+gem 'omniauth-facebook'
+gem 'omniauth-google-oauth2'
+
+# Feature
+gem 'acts_as_followable', github: 'huluren/acts_as_followable'
+
+# View
+gem 'haml-rails'
+gem 'rails-timeago'
+gem 'kaminari'
+gem 'ckeditor_rails'
+
+gem 'jquery-rails'
+gem 'jquery-ui-rails'
+gem 'bootstrap', '~> 4.0.0.beta'
+gem 'non-stupid-digest-assets'
+
+## Dev & Testing
+
+gem_group :development do
+  gem 'rails_best_practices'
+  gem 'brakeman', require: false
+end
+
+gem_group :test do
+  gem 'database_cleaner'
+end
+
+gem_group :development, :test do
+  gem 'sqlite3'
+  gem 'rspec-rails'
+  gem 'factory_girl_rails'
+
+  gem 'awesome_print'
+  gem 'bullet'
+  gem 'dotenv-rails'
+  gem 'pry-byebug'
+  gem 'pry-rails'
+end
+
+gem_group :staging, :production do
+  gem 'newrelic_rpm'
+end
+
+
+append_to_file '.gitignore', <<-GITIGNORE
+
+### template generated
+.rspec
+/db/*.sqlite3
+/db/*.sqlite3-journal
+*.orig
+
+# dotenv
+.env.local
+
+## Environment normalization:
+/vendor/bundle
+
+# these should all be checked in to normalize the environment:
+# Gemfile.lock, .ruby-version, .ruby-gemset
+
+# unless supporting rvm < 1.11.0 or doing something fancy, ignore this:
+.rvmrc
+GITIGNORE
+
+gsub_file 'config/secrets.yml', /^(\s*secret_key_base: ).*$/, '\1<%= ENV["SECRET_KEY_BASE"] %>'
+
+
+inside 'config/initializers/' do
+
+  file '12factor.rb', <<-12FACTOR
+Rails.application.configure do
+  config.public_file_server.enabled = ENV['RAILS_SERVE_STATIC_FILES'].present?
+
+  if ENV["RAILS_LOG_TO_STDOUT"].present?
+    logger           = ActiveSupport::Logger.new(STDOUT)
+    logger.formatter = config.log_formatter
+    config.logger = ActiveSupport::TaggedLogging.new(logger)
+  end
+end
+  12FACTOR
+
+  file 'better_errors.rb', <<-BETTER_ERRORS
+BetterErrors::Middleware.allow_ip! ENV['TRUSTED_IP'] if ENV['TRUSTED_IP']
+  BETTER_ERRORS
+
+  file 'field_with_error.rb', <<-FIELD_WITH_ERROR
+ActionView::Base.field_error_proc = Proc.new do |html_tag, instance|
+  class_attr_index = html_tag.index('class="')
+  first_tag_end_index = html_tag.index('>')
+
+  if class_attr_index.nil? || class_attr_index > first_tag_end_index
+    html_tag.insert(first_tag_end_index, ' class="error"')
+  else
+    html_tag.insert(class_attr_index + 7, 'error ')
+  end
+end
+  FIELD_WITH_ERROR
+
+  file 'i18n.rb', <<-I18N
+Rails.application.configure do
+  config.time_zone = 'Asia/Shanghai'
+
+  #I18n.available_locales = [:en, :'zh-CN']
+  config.i18n.available_locales = [:en, :'zh-CN']
+  config.i18n.default_locale = :'zh-CN'
+
+  config.i18n.fallbacks = [:en, :'zh-CN']
+end
+  I18N
+
+  file 'timeago.rb', <<-TIMEAGO
+Rails::Timeago.default_options limit: -> { 5.days.ago }, date_only: false, format: :short, nojs: false
+  TIMEAGO
+end
+
+after_bundle do
+  generate 'rspec:install'
+end
+
+## RSpec & FactoryGirl
+inside 'spec/' do
+  file '__include_spec.rb', <<-SPEC_SUPPORT
+require 'rails_helper'
+Dir[Rails.root.join('spec/support/**/*.rb')].each { |f| require f }
+  SPEC_SUPPORT
+
+  file 'support/factory_girl.rb', <<-FACTORY_GIRL
+RSpec.configure do |config|
+  config.include FactoryGirl::Syntax::Methods
+end
+  FACTORY_GIRL
+end
+
+## modules
+after_bundle do
+  %w[
+    pages-landing
+    database env heroku travis puma
+    theme i18n models layout title
+    devise-user omniauth post followable commentable
+
+    kaminari
+  ].each do |fn|
+    say '%s  %s' % ['*' * 12, fn], :cyan
+
+    rails_command 'app:template LOCATION=%s' % [__dir__, '/', fn, '.rb'].join
+  end
+end
+
+## db:migrate
+after_bundle do
+  rails_command 'db:migrate'
+  rails_command :spec, env: 'test'
+end
